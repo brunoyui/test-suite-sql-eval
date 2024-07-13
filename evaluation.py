@@ -24,6 +24,7 @@ import json
 import sqlite3
 import argparse
 
+import csv
 from process_sql import get_schema, Schema, get_sql
 from exec_eval import eval_exec_match
 
