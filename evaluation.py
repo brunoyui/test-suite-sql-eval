@@ -541,7 +541,7 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
 
     evaluator = Evaluator()
     turns = ['turn 1', 'turn 2', 'turn 3', 'turn 4', 'turn > 4']
-    levels = ['easy', 'medium', 'hard', 'extra', 'all', 'joint_all']
+    levels = ['easy', 'medium', 'hard', 'extra', 'no_hardness', 'all', 'joint_all']
 
     partial_types = ['select', 'select(no AGG)', 'where', 'where(no OP)', 'group(no Having)',
                      'group', 'order', 'and/or', 'IUEN', 'keywords']
@@ -567,12 +567,35 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
             p, g = pg
             p_str = p[0]
             p_str = p_str.replace("value", "1")
-            g_str, db = g
+            g_str, db, _id = g
             db_name = db
             db = os.path.join(db_dir, db, db + ".sqlite")
             schema = Schema(get_schema(db))
-            g_sql = get_sql(schema, g_str)
-            hardness = evaluator.eval_hardness(g_sql)
+            try:
+                g_sql = get_sql(schema, g_str)
+                hardness = evaluator.eval_hardness(g_sql)
+            except:
+                # If p_sql is not valid, then we will use an empty sql to evaluate with the correct sql
+                g_sql = {
+                "except": None,
+                "from": {
+                    "conds": [],
+                    "table_units": []
+                },
+                "groupBy": [],
+                "having": [],
+                "intersect": None,
+                "limit": None,
+                "orderBy": [],
+                "select": [
+                    False,
+                    []
+                ],
+                "union": None,
+                "where": []
+                }
+                hardness = 'no_hardness'
+            
             if idx > 3:
                 idx = "> 4"
             else:
@@ -583,6 +606,7 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
             scores['all']['count'] += 1
 
             try:
+                print(p_str)
                 p_sql = get_sql(schema, p_str)
             except:
                 # If p_sql is not valid, then we will use an empty sql to evaluate with the correct sql
@@ -615,6 +639,14 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                     turn_scores['exec'].append(1)
                 else:
                     turn_scores['exec'].append(0)
+                
+                entries.append({
+                    'predictSQL': p_str,
+                    'goldSQL': g_str,
+                    'hardness': hardness,
+                    'exact': exec_score,
+                    'id': _id
+                })
 
             if etype in ["all", "match"]:
                 # rebuild sql for value evaluation
@@ -658,7 +690,8 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                     'goldSQL': g_str,
                     'hardness': hardness,
                     'exact': exact_score,
-                    'partial': partial_scores
+                    'partial': partial_scores,
+                    'id': _id
                 })
 
         if all(v == 1 for v in turn_scores["exec"]):
@@ -702,6 +735,11 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                         2.0 * scores[level]['partial'][type_]['acc'] * scores[level]['partial'][type_]['rec'] / (
                         scores[level]['partial'][type_]['rec'] + scores[level]['partial'][type_]['acc'])
 
+    with open('evaluation_examples/score.tsv','w') as tsv_file:
+      tsv_writer = csv.writer(tsv_file, delimiter='\t')
+      for e in entries:
+          tsv_writer.writerow([e['id'], e['predictSQL'], e['goldSQL'],e['hardness'],e['exact']])
+      tsv_file.close()
     print_scores(scores, etype, include_turn_acc=include_turn_acc)
 
 
