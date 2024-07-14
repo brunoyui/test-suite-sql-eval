@@ -187,7 +187,7 @@ def exec_on_db(
     try:
         return func_timeout(timeout, exec_on_db_,
                                   args=(sqlite_path, query))
-    except asyncio.TimeoutError:
+    except FunctionTimedOut:
         return ('exception', TimeoutError)
     except Exception as e:
         return ("exception", e)
