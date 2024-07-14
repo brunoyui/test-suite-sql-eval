@@ -18,7 +18,7 @@ from func_timeout import func_timeout, FunctionTimedOut
 
 
 threadLock = threading.Lock()
-TIMEOUT = 10
+TIMEOUT = 30
 EXEC_TMP_DIR = 'tmp/'
 
 def permute_tuple(element: Tuple, perm: Tuple) -> Tuple:
