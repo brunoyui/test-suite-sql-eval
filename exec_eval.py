@@ -13,11 +13,12 @@ import time
 import pickle as pkl
 import subprocess
 from itertools import chain
+from func_timeout import func_timeout, FunctionTimedOut
 
 
 
 threadLock = threading.Lock()
-TIMEOUT = 60
+TIMEOUT = 30
 EXEC_TMP_DIR = 'tmp/'
 
 def permute_tuple(element: Tuple, perm: Tuple) -> Tuple:
@@ -142,7 +143,21 @@ def get_cursor_from_path(sqlite_path: str):
     return cursor
 
 
-async def exec_on_db_(sqlite_path: str, query: str) -> Tuple[str, Any]:
+#async def exec_on_db_(sqlite_path: str, query: str) -> Tuple[str, Any]:
+#    query = replace_cur_year(query)
+#    cursor = get_cursor_from_path(sqlite_path)
+#    try:
+#        cursor.execute(query)
+#        result = cursor.fetchall()
+#        cursor.close()
+#        cursor.connection.close()
+#        return "result", result
+#    except Exception as e:
+#        cursor.close()
+#        cursor.connection.close()
+#        return "exception", e
+
+def exec_on_db_(sqlite_path: str, query: str) -> Tuple[str, Any]:
     query = replace_cur_year(query)
     cursor = get_cursor_from_path(sqlite_path)
     try:
@@ -156,15 +171,45 @@ async def exec_on_db_(sqlite_path: str, query: str) -> Tuple[str, Any]:
         cursor.connection.close()
         return "exception", e
 
-async def exec_on_db(
+#async def exec_on_db(
+#    sqlite_path: str, query: str, process_id: str = "", timeout: int = TIMEOUT
+#) -> Tuple[str, Any]:
+#    try:
+#        return await asyncio.wait_for(exec_on_db_(sqlite_path, query), timeout)
+#    except asyncio.TimeoutError:
+#        return ('exception', TimeoutError)
+#    except Exception as e:
+#        return ("exception", e)
+
+def exec_on_db(
     sqlite_path: str, query: str, process_id: str = "", timeout: int = TIMEOUT
 ) -> Tuple[str, Any]:
     try:
-        return await asyncio.wait_for(exec_on_db_(sqlite_path, query), timeout)
+        return func_timeout(timeout, exec_on_db_,
+                                  args=(sqlite_path, query))
     except asyncio.TimeoutError:
         return ('exception', TimeoutError)
     except Exception as e:
         return ("exception", e)
+
+
+def execute_model(predicted_sql,ground_truth, db_place, idx, meta_time_out):
+    try:
+        res = func_timeout(meta_time_out, execute_sql,
+                                  args=(predicted_sql, ground_truth, db_place))
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except FunctionTimedOut:
+        result = [(f'timeout',)]
+        res = 0
+    except Exception as e:
+        result = [(f'error',)]  # possibly len(query) > 512 or not executable
+        res = 0
+    # print(result)
+    # result = str(set([ret[0] for ret in result]))
+    result = {'sql_idx': idx, 'res': res}
+    # print(result)
+    return result
 
 
 # postprocess the model predictions to avoid execution errors
@@ -221,8 +266,8 @@ def eval_exec_match(db: str, p_str: str, g_str: str, plug_value: bool, keep_dist
             ranger = db_paths
 
         for db_path in ranger:
-            g_flag, g_denotation = asyncio.run(exec_on_db(db_path, g_str))
-            p_flag, p_denotation = asyncio.run(exec_on_db(db_path, pred))
+            g_flag, g_denotation = exec_on_db(db_path, g_str)
+            p_flag, p_denotation = exec_on_db(db_path, pred)
 
             # we should expect the gold to be succesfully executed on the database
             assert g_flag != 'exception', 'gold query %s has error on database file %s' % (g_str, db_path)
