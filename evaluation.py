@@ -746,10 +746,10 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
 
     if etype in ["all", "exec"]:
         with open('evaluation_examples/score_time.tsv','w') as tsv_file:
-            tsv_writer = csv.writer(tsv_file, delimiter='\t')
-        for e in entries:
+          tsv_writer = csv.writer(tsv_file, delimiter='\t')
+          for e in entries:
             tsv_writer.writerow([e['id'], e['p_exec_time'], e['g_exec_time']])
-        tsv_file.close()
+          tsv_file.close()
     print_scores(scores, etype, include_turn_acc=include_turn_acc)
 
 
