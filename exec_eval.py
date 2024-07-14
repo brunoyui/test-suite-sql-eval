@@ -161,15 +161,17 @@ def exec_on_db_(sqlite_path: str, query: str) -> Tuple[str, Any]:
     query = replace_cur_year(query)
     cursor = get_cursor_from_path(sqlite_path)
     try:
+        start_time = time.time()
         cursor.execute(query)
+        exec_time = time.time() - start_time
         result = cursor.fetchall()
         cursor.close()
         cursor.connection.close()
-        return "result", result
+        return "result", result, exec_time
     except Exception as e:
         cursor.close()
         cursor.connection.close()
-        return "exception", e
+        return "exception", e, 31.0
 
 #async def exec_on_db(
 #    sqlite_path: str, query: str, process_id: str = "", timeout: int = TIMEOUT
@@ -188,28 +190,10 @@ def exec_on_db(
         return func_timeout(timeout, exec_on_db_,
                                   args=(sqlite_path, query))
     except FunctionTimedOut:
-        return ('exception', TimeoutError)
+        return ('exception', TimeoutError, 31.0)
     except Exception as e:
-        return ("exception", e)
+        return ("exception", e, 31.0)
 
-
-def execute_model(predicted_sql,ground_truth, db_place, idx, meta_time_out):
-    try:
-        res = func_timeout(meta_time_out, execute_sql,
-                                  args=(predicted_sql, ground_truth, db_place))
-    except KeyboardInterrupt:
-        sys.exit(0)
-    except FunctionTimedOut:
-        result = [(f'timeout',)]
-        res = 0
-    except Exception as e:
-        result = [(f'error',)]  # possibly len(query) > 512 or not executable
-        res = 0
-    # print(result)
-    # result = str(set([ret[0] for ret in result]))
-    result = {'sql_idx': idx, 'res': res}
-    # print(result)
-    return result
 
 
 # postprocess the model predictions to avoid execution errors
@@ -226,7 +210,7 @@ def postprocess(query: str) -> str:
 # 0 if denotationally equivalent
 # 1 otherwise
 # the meaning of each auxillary argument can be seen in the parser definition in evaluation.py
-def eval_exec_match(db: str, p_str: str, g_str: str, plug_value: bool, keep_distinct: bool, progress_bar_for_each_datapoint: bool) -> int:
+def eval_exec_match(db: str, p_str: str, g_str: str, plug_value: bool, keep_distinct: bool, progress_bar_for_each_datapoint: bool) -> int, float, float:
     # post-process the prediction.
     # e.g. removing spaces between ">" and "="
     p_str, g_str = postprocess(p_str), postprocess(g_str)
@@ -266,8 +250,8 @@ def eval_exec_match(db: str, p_str: str, g_str: str, plug_value: bool, keep_dist
             ranger = db_paths
 
         for db_path in ranger:
-            g_flag, g_denotation = exec_on_db(db_path, g_str)
-            p_flag, p_denotation = exec_on_db(db_path, pred)
+            g_flag, g_denotation, g_exec_time = exec_on_db(db_path, g_str)
+            p_flag, p_denotation, p_exec_time = exec_on_db(db_path, pred)
 
             # we should expect the gold to be succesfully executed on the database
             assert g_flag != 'exception', 'gold query %s has error on database file %s' % (g_str, db_path)
@@ -284,7 +268,7 @@ def eval_exec_match(db: str, p_str: str, g_str: str, plug_value: bool, keep_dist
 
         # the model prediction has the same denotation as the gold for all databases
         if pred_passes == 1:
-            return 1
+            return 1, p_exec_time, g_exec_time
 
     # none of the predictions passed
-    return 0
+    return 0, p_exec_time, g_exec_time

@@ -631,7 +631,7 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                 }
 
             if etype in ["all", "exec"]:
-                exec_score = eval_exec_match(db=db, p_str=p_str, g_str=g_str, plug_value=plug_value,
+                exec_score, p_exec_time, g_exec_time = eval_exec_match(db=db, p_str=p_str, g_str=g_str, plug_value=plug_value,
                                              keep_distinct=keep_distinct, progress_bar_for_each_datapoint=progress_bar_for_each_datapoint)
                 if exec_score:
                     scores[hardness]['exec'] += 1
@@ -646,7 +646,9 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
                     'goldSQL': g_str,
                     'hardness': hardness,
                     'exact': exec_score,
-                    'id': _id
+                    'id': _id,
+                    'p_exec_time': p_exec_time,
+                    'g_exec_time': g_exec_time
                 })
 
             if etype in ["all", "match"]:
@@ -741,6 +743,13 @@ def evaluate(gold, predict, db_dir, etype, kmaps, plug_value, keep_distinct, pro
       for e in entries:
           tsv_writer.writerow([e['id'], e['predictSQL'], e['goldSQL'],e['hardness'],e['exact']])
       tsv_file.close()
+
+    if etype in ["all", "exec"]:
+        with open('evaluation_examples/score_time.tsv','w') as tsv_file:
+            tsv_writer = csv.writer(tsv_file, delimiter='\t')
+        for e in entries:
+            tsv_writer.writerow([e['id'], e['p_exec_time'], e['g_exec_time']])
+        tsv_file.close()
     print_scores(scores, etype, include_turn_acc=include_turn_acc)
 
 
