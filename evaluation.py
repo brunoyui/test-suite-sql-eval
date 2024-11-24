@@ -31,7 +31,7 @@ from exec_eval import eval_exec_match
 # Flag to disable value evaluation
 DISABLE_VALUE = True
 # Flag to disable distinct in select evaluation
-DISABLE_DISTINCT = True
+DISABLE_DISTINCT = False
 
 
 CLAUSE_KEYWORDS = ('select', 'from', 'where', 'group', 'order', 'limit', 'intersect', 'union', 'except')
